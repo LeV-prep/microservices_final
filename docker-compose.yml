@@ -1,0 +1,25 @@
+
+services:
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "5000:5000"    # host:container
+    # facultatif mais propre
+    environment:
+      - SERVICE_NAME=auth
+    # le réseau par défaut de docker-compose suffit
+
+  catalog-service:
+    build:
+      context: ./services/catalog-service
+      dockerfile: Dockerfile
+    container_name: catalog-service
+    ports:
+      - "5001:5001"
+    environment:
+      - SERVICE_NAME=catalog
+    depends_on:
+      - auth-service

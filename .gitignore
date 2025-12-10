@@ -1,0 +1,21 @@
+# Ignore Terraform local state
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# Ignore secrets
+terraform/terraform.tfvars
+
+# Ignore SSH keys
+*.pem
+*.key
+*.pub  # optional, on peut ignorer ou pas
+
+# Python cache
+__pycache__/
+
+# VSCode folder
+.vscode/
+
+# Logs
+*.log
