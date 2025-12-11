@@ -12,7 +12,5 @@ output "catalog_url" {
 }
 
 
-output "azure_vm_public_ip" {
-  description = "Adresse IP publique de la VM Azure"
-  value       = azurerm_public_ip.vm.ip_address
-}
+
+

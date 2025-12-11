@@ -11,9 +11,9 @@ terraform {
       version = "~> 3.0"
     }
 
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.0"
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
     }
   }
 }
@@ -22,8 +22,11 @@ terraform {
 # Provider Docker : Terraform va parler au daemon Docker local
 provider "docker" {}
 
-provider "azurerm" {
-  features {}
+provider "aws" {
+  region = var.aws_region
+  # Les credentials sont pris par :
+  # - aws configure
+  # - ou variables d'env: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
 }
 
 
@@ -68,7 +71,7 @@ resource "docker_image" "catalog" {
 
 resource "docker_container" "auth" {
   name  = "auth-service"
-  image = docker_image.auth.image_id   # image buildée juste au-dessus
+  image = docker_image.auth.image_id # image buildée juste au-dessus
 
   must_run = true
   restart  = "no"
@@ -132,139 +135,100 @@ resource "docker_container" "catalog" {
 
 
 ############################################################
-# 6. Azure : Resource Group, réseau, VM Linux
+# Variables
 ############################################################
 
-# Région Azure (West Europe = data center en Europe)
-variable "azure_location" {
-  type    = string
-  default = "francecentral"
-}
-
-# Nom d'utilisateur pour la VM
-variable "azure_admin_username" {
-  type    = string
-  default = "victor"
-}
-
-# Ta clé SSH publique (contenu de ton id_rsa.pub)
-variable "azure_admin_ssh_public_key" {
-  description = "Clé SSH publique pour se connecter à la VM Azure"
+# Région AWS
+variable "aws_region" {
   type        = string
+  description = "Région AWS où créer les ressources"
 }
 
-# 6.1 Resource Group
-resource "azurerm_resource_group" "rg" {
-  name     = "rg-microservices-final"
-  location = var.azure_location
+# Identifiants de la base PostgreSQL RDS
+variable "db_username" {
+  type        = string
+  description = "Nom d'utilisateur admin pour la base PostgreSQL"
 }
 
-# 6.2 Réseau virtuel
-resource "azurerm_virtual_network" "vnet" {
-  name                = "vnet-microservices"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
-
-# 6.3 Subnet
-resource "azurerm_subnet" "subnet" {
-  name                 = "subnet-main"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.1.0/24"]
-}
-
-# 6.4 IP publique
-resource "azurerm_public_ip" "vm" {
-  name                = "pip-vm-microservices"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  sku_tier            = "Regional"
+variable "db_password" {
+  type        = string
+  description = "Mot de passe admin pour la base PostgreSQL"
+  sensitive   = true
 }
 
 
-# 6.5 Network Security Group (ouvrir SSH + HTTP)
-resource "azurerm_network_security_group" "nsg" {
-  name                = "nsg-microservices"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
 
-  security_rule {
-    name                       = "SSH"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
+############################################################
+# 6. AWS : Base de données RDS PostgreSQL
+############################################################
+
+# On récupère le VPC par défaut de la région choisie
+resource "aws_default_vpc" "default" {}
+
+# Security Group pour autoriser l'accès à PostgreSQL
+resource "aws_security_group" "db" {
+  name        = "startup-db"
+  description = "Security group pour la base PostgreSQL de la startup"
+  vpc_id      = aws_default_vpc.default.id
+
+  # Ingress : autoriser TCP 5432 depuis partout (pour un TP).
+  # En vrai : à restreindre à ton IP uniquement.
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  security_rule {
-    name                       = "HTTP"
-    priority                   = 110
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
+  # Egress : autoriser tout vers l'extérieur
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# 6.6 Interface réseau
-resource "azurerm_network_interface" "nic" {
-  name                = "nic-vm-microservices"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+# Instance RDS PostgreSQL
+resource "aws_db_instance" "startup_catalog" {
+  identifier = "startup-catalog-db"
 
-  ip_configuration {
-    name                          = "ipconfig1"
-    subnet_id                     = azurerm_subnet.subnet.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.vm.id
-  }
+  engine         = "postgres"
+  engine_version = "16.3"        # tu peux adapter si besoin
+  instance_class = "db.t3.micro" # free tier friendly
+
+  allocated_storage = 20
+
+  db_name  = "startup_catalog"
+  username = var.db_username
+  password = var.db_password
+
+  # Associer le SG qu'on vient de créer
+  vpc_security_group_ids = [aws_security_group.db.id]
+
+  publicly_accessible = true
+  skip_final_snapshot = true
+
+  # Optionnel : pour éviter des petites surprises
+  deletion_protection = false
 }
 
-# 6.7 Associer le NSG à la NIC
-resource "azurerm_network_interface_security_group_association" "nic_nsg" {
-  network_interface_id      = azurerm_network_interface.nic.id
-  network_security_group_id = azurerm_network_security_group.nsg.id
+
+############################################################
+# Outputs AWS
+############################################################
+
+output "rds_endpoint" {
+  value       = aws_db_instance.startup_catalog.address
+  description = "Endpoint de la base PostgreSQL RDS"
 }
 
-# 6.8 VM Linux (Ubuntu) taille petite (éligible free tier)
-resource "azurerm_linux_virtual_machine" "vm" {
-  name                = "vm-microservices"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  size                = "Standard_B1s"
+output "rds_db_name" {
+  value       = aws_db_instance.startup_catalog.db_name
+  description = "Nom de la base de données"
+}
 
-  admin_username      = var.azure_admin_username
-
-  network_interface_ids = [
-    azurerm_network_interface.nic.id,
-  ]
-
-  admin_ssh_key {
-    username   = var.azure_admin_username
-    public_key = var.azure_admin_ssh_public_key
-  }
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
+output "rds_username" {
+  value       = var.db_username
+  description = "Utilisateur admin de la base"
 }
