@@ -16,6 +16,7 @@ The project includes:
   - AWS networking resources (default VPC + Security Group)
 
 Project Structure
+```
 services/
 ├── auth-service/
 │   ├── app.py
@@ -32,6 +33,8 @@ terraform/
 ├── terraform.tfvars
 ├── terraform.tfstate
 └── terraform.tfstate.backup
+```
+
 
 1. Running Local Microservices (Docker Compose)
 Start both services locally:
