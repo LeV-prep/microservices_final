@@ -30,8 +30,8 @@ services/
 terraform/
 ├── main.tf
 ├── outputs.tf
-├── terraform.tfvars
-├── terraform.tfstate
+├── terraform.tfvars     # ignored by git
+├── terraform.tfstate    # generated
 └── terraform.tfstate.backup
 ```
 
@@ -59,12 +59,13 @@ Provider 2: AWS
 Install AWS CLI and configure:
 aws configure
 
-Create terraform.tfvars:
+Create terraform.tfvars (example):
 aws_region  = "eu-west-3"
 db_username = "startup_admin"
 db_password = "StrongPassword123!"
 
 4. Running Terraform
+From inside /terraform:
 terraform init
 terraform plan
 terraform apply
@@ -85,7 +86,7 @@ This removes:
 - Destroy RDS after use to avoid charges
 - Do not commit secrets
 - terraform.tfvars is ignored by git
-- Opening port 5432 globally is acceptable only for TP work
+- Opening port 5432 globally is acceptable only for TP work (restrict in production)
 
 7. Useful Commands
 Docker:
@@ -101,8 +102,38 @@ terraform plan
 terraform apply
 terraform destroy
 
-8. Next Steps (Optional Enhancements)
-- Connect catalog-service to AWS RDS
-- Add Ansible deployment automation
-- Add monitoring (Grafana, Prometheus)
-- Add API gateway / reverse proxy
+8. Next Steps (Project Roadmap)
+Step 1 — Apply the infrastructure (Docker + AWS)
+- Run: terraform apply
+- Verify Docker containers are running:
+  - http://localhost:5000/login
+  - http://localhost:5001/products
+- Capture Terraform outputs (especially rds_endpoint)
+
+Step 2 — Initialize the PostgreSQL schema on AWS RDS
+- Connect to RDS using psql / pgAdmin / DBeaver
+- Create a minimal schema:
+  - table products(id, name, description, price)
+- Insert a few sample rows (seed data)
+
+Step 3 — Connect catalog-service to AWS RDS
+- Add a PostgreSQL client dependency in catalog-service (psycopg2-binary or SQLAlchemy)
+- Add an environment variable to the catalog container (e.g., DATABASE_URL)
+- Update /products to query the products table instead of returning static data
+
+Step 4 — Improve security (recommended)
+- Restrict the Security Group ingress (5432) to your public IP instead of 0.0.0.0/0
+- Optional: set publicly_accessible = false and use a bastion/EC2 (advanced)
+
+Step 5 — Optional functional features (nice for the report)
+- Add a leads table + route (e.g., POST /lead) to store emails
+- Protect admin routes using auth-service tokens
+
+Step 6 — Optional DevOps enhancements
+- Add CI checks (terraform fmt/validate, lint, docker build)
+- Add monitoring (Prometheus/Grafana) and basic healthchecks
+- Add an API gateway / reverse proxy (Nginx/Traefik)
+
+Author
+Victor Verdier
+DevOps / Cloud / Microservices Project
