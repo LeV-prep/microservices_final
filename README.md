@@ -1,22 +1,36 @@
-Project: Microservices + Terraform + Docker + AWS RDS Deployment
+Project: Microservices + Terraform + Docker + AWS RDS + Ansible
 
 Overview
-This project demonstrates a full DevOps workflow combining:
-- Local microservices containerized with Docker
-- Infrastructure as Code using Terraform
-- Two Terraform providers: Docker (local) and AWS (cloud)
-- A complete environment suitable for a startup-style internal platform
+This project demonstrates a complete infrastructure automation workflow combining:
+- Dockerized microservices
+- Infrastructure provisioning with Terraform
+- Configuration management with Ansible
+- Cloud resources on AWS (RDS PostgreSQL)
+- A reproducible Terraform → Ansible pipeline
 
-The project includes:
-- auth-service: simple login microservice (Python Flask)
-- catalog-service: product listing microservice (Python Flask)
-- Terraform configuration to deploy:
-  - Docker images & containers (auth + catalog)
-  - A PostgreSQL database hosted on AWS RDS
-  - AWS networking resources (default VPC + Security Group)
+The goal of the project is not application complexity, but infrastructure automation,
+reproducibility, and clarity, as required by the TP3 specifications.
+
+------------------------------------------------------------
+
+Architecture Overview
+
+Microservices:
+- auth-service: authentication microservice (Python Flask)
+- catalog-service: product catalog microservice (Python Flask)
+
+Infrastructure components:
+- Docker images and containers (managed by Terraform)
+- Docker network (ecommerce-net)
+- AWS RDS PostgreSQL database
+- AWS Security Group (PostgreSQL access)
+- Ansible roles for service configuration
+- Python script orchestrating the full pipeline
+
+------------------------------------------------------------
 
 Project Structure
-```
+
 services/
 ├── auth-service/
 │   ├── app.py
@@ -33,107 +47,182 @@ terraform/
 ├── terraform.tfvars     # ignored by git
 ├── terraform.tfstate    # generated
 └── terraform.tfstate.backup
-```
 
+ansible/
+├── inventory/
+│   └── inventory.ini    # generated dynamically
+├── roles/
+│   ├── common/
+│   ├── auth/
+│   └── catalog/
+└── playbook.yml
 
-1. Running Local Microservices (Docker Compose)
-Start both services locally:
-docker compose up --build
+deploy.py                # Python entrypoint for the pipeline
 
-Services exposed:
-- Auth service → http://localhost:5000/login
-- Catalog service → http://localhost:5001/products
+------------------------------------------------------------
 
-2. Terraform Infrastructure
-Provider 1: Docker
-- Builds Docker images
-- Creates Docker containers
-- Manages ecommerce-net network
+Prerequisites
 
-Provider 2: AWS
-- Adopts default AWS VPC
-- Creates a Security Group for PostgreSQL
-- Creates a managed RDS PostgreSQL instance
+1) Docker
+docker --version
+docker info
 
-3. Before Running Terraform
-Install AWS CLI and configure:
+2) Terraform
+terraform --version
+
+3) AWS CLI (required for Terraform AWS provider)
+aws --version
 aws configure
+aws sts get-caller-identity
 
-Create terraform.tfvars (example):
+Terraform automatically uses AWS credentials configured via the AWS CLI.
+
+4) Ansible
+ansible --version
+
+------------------------------------------------------------
+
+Terraform Variables
+
+Create the file terraform/terraform.tfvars:
+
 aws_region  = "eu-west-3"
 db_username = "startup_admin"
 db_password = "StrongPassword123!"
 
-4. Running Terraform
-From inside /terraform:
+Important:
+- This file is ignored by Git
+- Never commit secrets
+
+------------------------------------------------------------
+
+Main Deployment Workflow (Terraform)
+
+From the terraform/ directory:
+
 terraform init
-terraform plan
-terraform apply
-
-Outputs include:
-- Microservice URLs
-- RDS endpoint
-- DB name & username
-
-5. Destroying Resources
-terraform destroy
-This removes:
-- RDS instance
-- Security group
-- Docker containers & network
-
-6. Safety Notes
-- Destroy RDS after use to avoid charges
-- Do not commit secrets
-- terraform.tfvars is ignored by git
-- Opening port 5432 globally is acceptable only for TP work (restrict in production)
-
-7. Useful Commands
-Docker:
-docker ps
-docker images
-docker network ls
-docker compose down
-
-Terraform:
 terraform fmt
 terraform validate
 terraform plan
 terraform apply
+
+Terraform provisions:
+- Docker images
+- Docker containers
+- Docker network
+- AWS RDS PostgreSQL instance
+- AWS Security Group
+
+------------------------------------------------------------
+
+Terraform Outputs
+
+Terraform outputs expose:
+- Microservice URLs (localhost)
+- RDS endpoint
+- Database name
+- Database username
+- Ports and connection information required by Ansible
+
+These outputs are consumed by Ansible and the Python orchestration script.
+
+------------------------------------------------------------
+
+Configuration Management (Ansible)
+
+Ansible is used after Terraform to configure services and application behavior.
+
+Responsibilities:
+- Configure application environment variables
+- Configure database connection
+- Ensure idempotent service setup
+- Apply templates and handlers
+
+Ansible inventory is generated dynamically using Terraform outputs
+(no fully static inventory).
+
+Run Ansible manually (debug):
+ansible-playbook -i ansible/inventory/inventory.ini ansible/playbook.yml
+
+------------------------------------------------------------
+
+Python Orchestration Script
+
+A Python script (deploy.py) acts as the single entry point of the pipeline.
+
+Responsibilities:
+- Launch Terraform (init / apply)
+- Parse Terraform outputs
+- Generate Ansible inventory
+- Execute Ansible playbooks
+- Optionally trigger basic validation tests
+
+Example:
+python deploy.py deploy
+python deploy.py destroy
+
+------------------------------------------------------------
+
+Optional: Docker Compose (Local Debug Only)
+
+Docker Compose is optional and NOT part of the main deployment pipeline.
+
+It can be used only for local debugging without Terraform:
+
+docker compose up --build
+
+Warning:
+Do not use Docker Compose and Terraform Docker provider at the same time.
+
+------------------------------------------------------------
+
+Destroying Resources
+
 terraform destroy
 
-8. Next Steps (Project Roadmap)
-Step 1 — Apply the infrastructure (Docker + AWS)
-- Run: terraform apply
-- Verify Docker containers are running:
-  - http://localhost:5000/login
-  - http://localhost:5001/products
-- Capture Terraform outputs (especially rds_endpoint)
+This removes:
+- AWS RDS instance
+- Security Group
+- Docker containers
+- Docker network
 
-Step 2 — Initialize the PostgreSQL schema on AWS RDS
-- Connect to RDS using psql / pgAdmin / DBeaver
-- Create a minimal schema:
-  - table products(id, name, description, price)
-- Insert a few sample rows (seed data)
+Always destroy AWS resources after TP work to avoid cloud charges.
 
-Step 3 — Connect catalog-service to AWS RDS
-- Add a PostgreSQL client dependency in catalog-service (psycopg2-binary or SQLAlchemy)
-- Add an environment variable to the catalog container (e.g., DATABASE_URL)
-- Update /products to query the products table instead of returning static data
+------------------------------------------------------------
 
-Step 4 — Improve security (recommended)
-- Restrict the Security Group ingress (5432) to your public IP instead of 0.0.0.0/0
-- Optional: set publicly_accessible = false and use a bastion/EC2 (advanced)
+Safety Notes
 
-Step 5 — Optional functional features (nice for the report)
-- Add a leads table + route (e.g., POST /lead) to store emails
-- Protect admin routes using auth-service tokens
+- Do not commit secrets
+- terraform.tfvars is ignored by git
+- PostgreSQL port (5432) is open publicly for TP purposes only
+- In production, restrict access to trusted IPs
 
-Step 6 — Optional DevOps enhancements
-- Add CI checks (terraform fmt/validate, lint, docker build)
-- Add monitoring (Prometheus/Grafana) and basic healthchecks
-- Add an API gateway / reverse proxy (Nginx/Traefik)
+------------------------------------------------------------
+
+Roadmap (TP3 Alignment)
+
+Step 1 — Infrastructure provisioning (Terraform)
+- Provision Docker containers and AWS RDS
+- Expose all required outputs
+
+Step 2 — Configuration management (Ansible)
+- Create at least two Ansible roles (common + service roles)
+- Use templates (Jinja2) for configuration
+- Ensure idempotence and handlers
+- Consume Terraform outputs dynamically
+
+Step 3 — Pipeline orchestration (Python)
+- Implement a single Python entrypoint (deploy.py)
+- Chain Terraform → Ansible automatically
+- Allow full redeploy after destruction
+
+Step 4 — Validation and demonstration
+- Verify exposed services
+- Demonstrate reproducibility
+- Present architecture, pipeline, and automation choices
+
+------------------------------------------------------------
 
 Author
 Victor Verdier
-DevOps / Cloud / Microservices Project
+DevOps / Cloud / Infrastructure Automation Project
