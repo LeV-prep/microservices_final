@@ -1,0 +1,12 @@
+- name: Deploy microservices + init RDS database (local Docker)
+  hosts: local
+  gather_facts: false
+
+  vars:
+    terraform_dir: "../terraform"
+
+  roles:
+    - common
+    - db_init
+    - auth
+    - catalog

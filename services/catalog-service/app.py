@@ -1,32 +1,51 @@
+import os
+import psycopg2
 from flask import Flask, request, render_template_string, redirect, url_for
 
 app = Flask(__name__)
 
-# ---------------------------------------------------------
-# 1. "Catalogue" ultra simple : liste d'articles en mémoire
-# ---------------------------------------------------------
-PRODUCTS = [
-    {"id": 1, "name": "T-shirt DevOps", "price": 19.99},
-    {"id": 2, "name": "Mug Terraform", "price": 12.50},
-    {"id": 3, "name": "Sticker Kubernetes", "price": 3.00},
-]
+def fetch_products_from_db():
+    host = os.getenv("DB_HOST")
+    port = int(os.getenv("DB_PORT", "5432"))
+    dbname = os.getenv("DB_NAME")
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASSWORD")
+
+    if not all([host, dbname, user, password]):
+        raise RuntimeError("Missing DB env vars: DB_HOST, DB_NAME, DB_USER, DB_PASSWORD")
+
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        dbname=dbname,
+        user=user,
+        password=password,
+        sslmode="require",  # important pour RDS (comme ton test psql)
+    )
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, price FROM products ORDER BY id;")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    # Convertit en liste de dicts comme avant
+    return [{"id": r[0], "name": r[1], "price": float(r[2])} for r in rows]
 
 
-# ---------------------------------------------------------
-# 2. Page d'accueil : redirige vers /products
-# ---------------------------------------------------------
 @app.route("/")
 def home():
     return redirect(url_for("list_products"))
 
 
-# ---------------------------------------------------------
-# 3. Page produits : affiche les articles
-#    - lit éventuellement le paramètre ?user= dans l'URL
-# ---------------------------------------------------------
 @app.route("/products")
 def list_products():
     user = request.args.get("user", "invité")
+
+    try:
+        products = fetch_products_from_db()
+    except Exception as e:
+        # En cas d’erreur DB, on affiche un message clair dans la page
+        return f"Erreur connexion DB: {e}", 500
 
     products_page = """
     <!DOCTYPE html>
@@ -56,11 +75,8 @@ def list_products():
     </html>
     """
 
-    return render_template_string(products_page, user=user, products=PRODUCTS)
+    return render_template_string(products_page, user=user, products=products)
 
 
 if __name__ == "__main__":
-    # Pour tes tests en local :
-    # - host="0.0.0.0" pour que ce soit accessible depuis Docker
-    # - port=5001 pour catalog-service
     app.run(host="0.0.0.0", port=5001, debug=True)

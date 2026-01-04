@@ -1,0 +1,8 @@
+- name: Check Docker is available
+  command: docker version
+  register: docker_version
+  changed_when: false
+
+- name: Ensure postgres client image is present (for psql)
+  command: docker pull postgres:15
+  changed_when: false

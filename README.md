@@ -1,228 +1,113 @@
-Project: Microservices + Terraform + Docker + AWS RDS + Ansible
+# Microservices E-commerce — Terraform + Ansible + Docker + AWS RDS
 
-Overview
-This project demonstrates a complete infrastructure automation workflow combining:
-- Dockerized microservices
-- Infrastructure provisioning with Terraform
-- Configuration management with Ansible
-- Cloud resources on AWS (RDS PostgreSQL)
-- A reproducible Terraform → Ansible pipeline
+## Overview
 
-The goal of the project is not application complexity, but infrastructure automation,
-reproducibility, and clarity, as required by the TP3 specifications.
+This project demonstrates a **fully automated, reproducible DevOps pipeline** for a
+mini e-commerce application based on microservices.
 
-------------------------------------------------------------
+The focus of the project is **infrastructure automation and configuration management**,
+not application complexity.
 
-Architecture Overview
+The pipeline combines:
 
-Microservices:
-- auth-service: authentication microservice (Python Flask)
-- catalog-service: product catalog microservice (Python Flask)
+- **Terraform** for infrastructure provisioning
+- **AWS RDS (PostgreSQL)** for persistent data
+- **Docker** for containerized microservices
+- **Ansible** for application configuration and database initialization
+- **Python** as a single orchestration entrypoint
 
-Infrastructure components:
-- Docker images and containers (managed by Terraform)
-- Docker network (ecommerce-net)
-- AWS RDS PostgreSQL database
-- AWS Security Group (PostgreSQL access)
-- Ansible roles for service configuration
-- Python script orchestrating the full pipeline
+The entire stack can be **destroyed and recreated from scratch** using a single command.
 
-------------------------------------------------------------
+---
 
-Project Structure
+## Architecture Overview
 
-services/
-├── auth-service/
-│   ├── app.py
-│   ├── Dockerfile
-│   └── requirements.txt
-└── catalog-service/
-    ├── app.py
-    ├── Dockerfile
-    └── requirements.txt
+### Microservices
 
-terraform/
-├── main.tf
-├── outputs.tf
-├── terraform.tfvars     # ignored by git
-├── terraform.tfstate    # generated
-└── terraform.tfstate.backup
+- **auth-service**
+  - Handles user authentication
+  - Validates credentials against PostgreSQL
+  - Redirects authenticated users to the catalog
 
-ansible/
-├── inventory/
-│   └── inventory.ini    # generated dynamically
-├── roles/
-│   ├── common/
-│   ├── auth/
-│   └── catalog/
-└── playbook.yml
+- **catalog-service**
+  - Displays the product catalog
+  - Reads products directly from PostgreSQL
 
-deploy.py                # Python entrypoint for the pipeline
+Both services are written in **Python (Flask)** and run as Docker containers.
 
-------------------------------------------------------------
+---
 
-Prerequisites
+### Infrastructure Components
 
-1) Docker
-docker --version
-docker info
+- **AWS RDS PostgreSQL**
+  - Central database for users and products
+  - Publicly accessible for TP purposes
+- **AWS Security Group**
+  - Allows inbound access on port `5432`
+- **Docker network**
+  - Allows inter-service communication
+- **Local Docker daemon**
+  - Runs the microservices containers
 
-2) Terraform
-terraform --version
+---
 
-3) AWS CLI (required for Terraform AWS provider)
-aws --version
-aws configure
-aws sts get-caller-identity
+## Responsibilities by Tool
 
-Terraform automatically uses AWS credentials configured via the AWS CLI.
+### Terraform — Infrastructure Provisioning
 
-4) Ansible
-ansible --version
+Terraform is responsible for:
 
-------------------------------------------------------------
+- Creating the AWS RDS PostgreSQL instance
+- Creating the Security Group
+- Exposing infrastructure information via outputs:
+  - RDS endpoint
+  - Database name
+  - Database username
 
-Terraform Variables
+Terraform **does not manage application containers**.
+This separation avoids configuration drift and keeps Terraform focused on infrastructure.
 
-Create the file terraform/terraform.tfvars:
+> **Design choice:**  
+> The database is intentionally destroyed during `terraform destroy`.
+> This allows full reproducibility and clean testing on a new machine.
+> No final snapshot is kept (`skip_final_snapshot = true`) as required for TP usage.
 
-aws_region  = "eu-west-3"
-db_username = "startup_admin"
-db_password = "StrongPassword123!"
+---
 
-Important:
-- This file is ignored by Git
-- Never commit secrets
+### Ansible — Configuration & Runtime Management
 
-------------------------------------------------------------
+Ansible is responsible for:
 
-Main Deployment Workflow (Terraform)
+- Reading Terraform outputs dynamically
+- Initializing the database schema (tables + seed data)
+- Building Docker images for both services
+- Creating and running containers with the correct environment variables
+- Injecting database credentials into services
 
-From the terraform/ directory:
+---
 
-terraform init
-terraform fmt
-terraform validate
-terraform plan
-terraform apply
+### Database Initialization (Ansible)
 
-Terraform provisions:
-- Docker images
-- Docker containers
-- Docker network
-- AWS RDS PostgreSQL instance
-- AWS Security Group
+The database is initialized automatically using `init.sql`:
 
-------------------------------------------------------------
+- Creates tables:
+  - `users`
+  - `products`
+- Inserts initial data (seed)
 
-Terraform Outputs
+---
 
-Terraform outputs expose:
-- Microservice URLs (localhost)
-- RDS endpoint
-- Database name
-- Database username
-- Ports and connection information required by Ansible
+## Deployment
 
-These outputs are consumed by Ansible and the Python orchestration script.
+```bash
+python3 deploy.py deploy
+python3 deploy.py destroy
+```
 
-------------------------------------------------------------
+---
 
-Configuration Management (Ansible)
+## Author
 
-Ansible is used after Terraform to configure services and application behavior.
-
-Responsibilities:
-- Configure application environment variables
-- Configure database connection
-- Ensure idempotent service setup
-- Apply templates and handlers
-
-Ansible inventory is generated dynamically using Terraform outputs
-(no fully static inventory).
-
-Run Ansible manually (debug):
-ansible-playbook -i ansible/inventory/inventory.ini ansible/playbook.yml
-
-------------------------------------------------------------
-
-Python Orchestration Script
-
-A Python script (deploy.py) acts as the single entry point of the pipeline.
-
-Responsibilities:
-- Launch Terraform (init / apply)
-- Parse Terraform outputs
-- Generate Ansible inventory
-- Execute Ansible playbooks
-- Optionally trigger basic validation tests
-
-Example:
-python deploy.py deploy
-python deploy.py destroy
-
-------------------------------------------------------------
-
-Optional: Docker Compose (Local Debug Only)
-
-Docker Compose is optional and NOT part of the main deployment pipeline.
-
-It can be used only for local debugging without Terraform:
-
-docker compose up --build
-
-Warning:
-Do not use Docker Compose and Terraform Docker provider at the same time.
-
-------------------------------------------------------------
-
-Destroying Resources
-
-terraform destroy
-
-This removes:
-- AWS RDS instance
-- Security Group
-- Docker containers
-- Docker network
-
-Always destroy AWS resources after TP work to avoid cloud charges.
-
-------------------------------------------------------------
-
-Safety Notes
-
-- Do not commit secrets
-- terraform.tfvars is ignored by git
-- PostgreSQL port (5432) is open publicly for TP purposes only
-- In production, restrict access to trusted IPs
-
-------------------------------------------------------------
-
-Roadmap (TP3 Alignment)
-
-Step 1 — Infrastructure provisioning (Terraform)
-- Provision Docker containers and AWS RDS
-- Expose all required outputs
-
-Step 2 — Configuration management (Ansible)
-- Create at least two Ansible roles (common + service roles)
-- Use templates (Jinja2) for configuration
-- Ensure idempotence and handlers
-- Consume Terraform outputs dynamically
-
-Step 3 — Pipeline orchestration (Python)
-- Implement a single Python entrypoint (deploy.py)
-- Chain Terraform → Ansible automatically
-- Allow full redeploy after destruction
-
-Step 4 — Validation and demonstration
-- Verify exposed services
-- Demonstrate reproducibility
-- Present architecture, pipeline, and automation choices
-
-------------------------------------------------------------
-
-Author
-Victor Verdier
-DevOps / Cloud / Infrastructure Automation Project
+Victor Verdier  
+DevOps / Cloud / Infrastructure Automation  
+TP Microservices

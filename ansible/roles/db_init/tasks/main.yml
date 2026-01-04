@@ -1,0 +1,29 @@
+- name: Read terraform outputs as JSON
+  command: terraform output -json
+  args:
+    chdir: "{{ terraform_dir }}"
+  register: tf_out
+  changed_when: false
+
+- name: Parse terraform outputs
+  set_fact:
+    rds_endpoint: "{{ (tf_out.stdout | from_json).rds_endpoint.value }}"
+    rds_db_name: "{{ (tf_out.stdout | from_json).rds_db_name.value }}"
+    rds_username: "{{ (tf_out.stdout | from_json).rds_username.value }}"
+
+- name: Fail if db_password is not provided
+  assert:
+    that:
+      - db_password is defined
+      - db_password | length > 0
+    fail_msg: "db_password is required. Run with: -e \"db_password=...\""
+
+- name: Init database schema + seed data (products, users)
+  command: >
+    docker run --rm
+    -e PGPASSWORD={{ db_password }}
+    -v {{ playbook_dir }}/roles/db_init/files:/sql:ro
+    postgres:15
+    psql "host={{ rds_endpoint }} port=5432 dbname={{ rds_db_name }} user={{ rds_username }} sslmode=require"
+    -f /sql/init.sql
+  changed_when: true

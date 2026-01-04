@@ -69,67 +69,15 @@ resource "docker_image" "catalog" {
 # 4. Conteneur auth-service
 ############################################################
 
-resource "docker_container" "auth" {
-  name  = "auth-service"
-  image = docker_image.auth.image_id # image buildée juste au-dessus
+#Finalement c'est ansible qui va le créer
 
-  must_run = true
-  restart  = "no"
-
-  # Exposer le port 5000 du conteneur vers 5000 sur ta machine
-  ports {
-    internal = 5000
-    external = 5000
-    ip       = "0.0.0.0"
-    protocol = "tcp"
-  }
-
-  env = [
-    "SERVICE_NAME=auth",
-    "ENVIRONMENT=dev",
-  ]
-
-  networks_advanced {
-    name = docker_network.ecommerce.name
-  }
-}
 
 
 ############################################################
 # 5. Conteneur catalog-service
 ############################################################
 
-resource "docker_container" "catalog" {
-  name  = "catalog-service"
-  image = docker_image.catalog.image_id
-
-  must_run = true
-  restart  = "no"
-
-  # Exposer le port 5001 du conteneur vers 5001 sur ta machine
-  ports {
-    internal = 5001
-    external = 5001
-    ip       = "0.0.0.0"
-    protocol = "tcp"
-  }
-
-  env = [
-    "SERVICE_NAME=catalog",
-    "ENVIRONMENT=dev",
-  ]
-
-  networks_advanced {
-    name = docker_network.ecommerce.name
-  }
-
-  # Optionnel : s'assurer que le réseau existe avant
-  depends_on = [
-    docker_network.ecommerce,
-    docker_container.auth
-  ]
-}
-
+#Finalement c'est ansible qui va le créer
 
 
 
@@ -194,7 +142,7 @@ resource "aws_db_instance" "startup_catalog" {
   identifier = "startup-catalog-db"
 
   engine         = "postgres"
-  engine_version = "15.7"        # tu peux adapter si besoin
+  #engine_version = "15.7"        # tu peux adapter si besoin
   instance_class = "db.t3.micro" # free tier friendly
 
   allocated_storage = 20
