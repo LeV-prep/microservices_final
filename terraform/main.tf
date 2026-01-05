@@ -141,7 +141,7 @@ resource "aws_security_group" "db" {
 resource "aws_db_instance" "startup_catalog" {
   identifier = "startup-catalog-db"
 
-  engine         = "postgres"
+  engine = "postgres"
   #engine_version = "15.7"        # tu peux adapter si besoin
   instance_class = "db.t3.micro" # free tier friendly
 

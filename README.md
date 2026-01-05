@@ -80,7 +80,6 @@ Ansible is responsible for:
 
 - Reading Terraform outputs dynamically
 - Initializing the database schema (tables + seed data)
-- Building Docker images for both services
 - Creating and running containers with the correct environment variables
 - Injecting database credentials into services
 
@@ -99,8 +98,39 @@ The database is initialized automatically using `init.sql`:
 
 ## Deployment
 
+### Prerequisites
+
+- Docker Desktop (running)
+- WSL with Ubuntu
+- Terraform
+- Ansible
+- AWS credentials configured locally (`aws configure`)
+
+### Database credentials
+
+The database password is **not stored in the repository**.
+
+Before deployment, export a database password as an environment variable:
+
+```bash
+export DB_PASSWORD="VeryStrongPassword123!"
+```
+
+This password will be used by:
+- Terraform to create the PostgreSQL RDS instance
+- Ansible to initialize the database and configure the services
+
+### Deploy
+
 ```bash
 python3 deploy.py deploy
+```
+
+---
+
+## Destruction
+
+```bash
 python3 deploy.py destroy
 ```
 

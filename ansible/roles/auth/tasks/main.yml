@@ -18,61 +18,11 @@
       - db_password | length > 0
     fail_msg: "db_password is required. Run with: -e \"db_password=...\""
 
-- name: Rebuild auth-service image
-  command: docker build -t auth-service:latest ../services/auth-service
-  args:
-    chdir: "{{ terraform_dir }}"
-  changed_when: true
-
 - name: Remove existing auth container (if exists)
   command: docker rm -f auth-service
   ignore_errors: true
 
-- name: Run auth container with DB env vars
-  command: >
-    docker run -d --name auth-service
-    --network ecommerce-net
-    -p 5000:5000
-    -e SERVICE_NAME=auth
-    -e ENVIRONMENT=dev
-    -e DB_HOST={{ rds_endpoint }}
-    -e DB_PORT=5432
-    -e DB_NAME={{ rds_db_name }}
-    -e DB_USER={{ rds_username }}
-    -e DB_PASSWORD={{ db_password }}
-    auth-service:latest
-  changed_when: true
-- name: Read terraform outputs as JSON
-  command: terraform output -json
-  args:
-    chdir: "{{ terraform_dir }}"
-  register: tf_out
-  changed_when: false
-
-- name: Parse terraform outputs
-  set_fact:
-    rds_endpoint: "{{ (tf_out.stdout | from_json).rds_endpoint.value }}"
-    rds_db_name: "{{ (tf_out.stdout | from_json).rds_db_name.value }}"
-    rds_username: "{{ (tf_out.stdout | from_json).rds_username.value }}"
-
-- name: Fail if db_password is not provided
-  assert:
-    that:
-      - db_password is defined
-      - db_password | length > 0
-    fail_msg: "db_password is required. Run with: -e \"db_password=...\""
-
-- name: Rebuild auth-service image
-  command: docker build -t auth-service:latest ../services/auth-service
-  args:
-    chdir: "{{ terraform_dir }}"
-  changed_when: true
-
-- name: Remove existing auth container (if exists)
-  command: docker rm -f auth-service
-  ignore_errors: true
-
-- name: Run auth container with DB env vars
+- name: Run auth container with DB env vars (image built by Terraform)
   command: >
     docker run -d --name auth-service
     --network ecommerce-net
