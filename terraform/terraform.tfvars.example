@@ -1,0 +1,6 @@
+# AWS region where resources will be created
+aws_region = "eu-west-3"
+
+# Database credentials (example values)
+db_username = "startup_admin"
+db_password = "CHANGE_ME"

@@ -106,6 +106,25 @@ The database is initialized automatically using `init.sql`:
 - Ansible
 - AWS credentials configured locally (`aws configure`)
 
+### Terraform variables
+
+Terraform variables are not stored in the repository.
+
+Before deployment, create the following file:
+
+```bash
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars
+```
+
+Then edit terraform/terraform.tfvars and set your own values:
+
+```bash
+aws_region  = "eu-west-3"
+db_username = "startup_admin"
+db_password = "YourOwnStrongPassword"
+```
+
+
 ### Database credentials
 
 The database password is **not stored in the repository**.
