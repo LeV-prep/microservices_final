@@ -106,9 +106,9 @@ The database is initialized automatically using `init.sql`:
 - Ansible
 - AWS credentials configured locally (`aws configure`)
 
-### Terraform variables
+### Terraform variables 
 
-Terraform variables are **not stored in the repository** for security reasons.
+1. Terraform variables are **not stored in the repository** for security reasons.
 
 Each user must create their own variables file.
 
@@ -125,11 +125,11 @@ db_password = "YourOwnStrongPassword"
 ```
 
 
-### Database credentials
+### Database password 
 
 The database password must be provided twice, and must be the same:
 
-1. In terraform/terraform.tfvars → for AWS RDS creation
+1. In terraform/terraform.tfvars → for AWS RDS creation (done)
 2. As an environment variable → for Ansible & containers
 
 Linux / WSL (recommended)
@@ -140,8 +140,6 @@ Windows PowerShell (alternative)
 ```bash
 $env:DB_PASSWORD="YourOwnStrongPassword"
 ```
-
-⚠️ If the password is missing, the deployment script will prompt for it.
 
 
 ### Deploy
@@ -165,3 +163,4 @@ python3 deploy.py destroy
 Victor Verdier  
 DevOps / Cloud / Infrastructure Automation  
 TP Microservices
+
