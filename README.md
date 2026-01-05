@@ -132,7 +132,7 @@ The database password is **not stored in the repository**.
 Before deployment, export a database password as an environment variable:
 
 ```bash
-export DB_PASSWORD="VeryStrongPassword123!"
+export DB_PASSWORD="YourOwnStrongPassword" #The same as in terraform.tfvars
 ```
 
 This password will be used by:
