@@ -108,9 +108,9 @@ The database is initialized automatically using `init.sql`:
 
 ### Terraform variables
 
-Terraform variables are not stored in the repository.
+Terraform variables are **not stored in the repository** for security reasons.
 
-Before deployment, create the following file:
+Each user must create their own variables file.
 
 ```bash
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars
@@ -127,17 +127,22 @@ db_password = "YourOwnStrongPassword"
 
 ### Database credentials
 
-The database password is **not stored in the repository**.
+The database password must be provided twice, and must be the same:
 
-Before deployment, export a database password as an environment variable:
+1. In terraform/terraform.tfvars → for AWS RDS creation
+2. As an environment variable → for Ansible & containers
 
+Linux / WSL (recommended)
 ```bash
-export DB_PASSWORD="YourOwnStrongPassword" #The same as in terraform.tfvars
+export DB_PASSWORD="YourOwnStrongPassword"
+```
+Windows PowerShell (alternative)
+```bash
+$env:DB_PASSWORD="YourOwnStrongPassword"
 ```
 
-This password will be used by:
-- Terraform to create the PostgreSQL RDS instance
-- Ansible to initialize the database and configure the services
+⚠️ If the password is missing, the deployment script will prompt for it.
+
 
 ### Deploy
 
